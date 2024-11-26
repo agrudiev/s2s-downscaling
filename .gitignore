@@ -1,7 +1,8 @@
 backup/
 experiments/
 figs/
-
+checkpoints/
+events.out.tfevents*
 __pycache__/
 .vscode/
 src/s2s_downscaling.egg-info
@@ -9,3 +10,5 @@ src/s2s_downscaling.egg-info
 *_backup.py
 
 venv/
+
+examples/*/dirs.toml

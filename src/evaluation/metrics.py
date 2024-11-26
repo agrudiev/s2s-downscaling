@@ -1,12 +1,14 @@
 import numpy as np
 import properscoring as ps
+from scipy.stats import wasserstein_distance as wass_dist
+
 from utils import get_cdf, get_pdf
-from engineering.spectrum import get_psd
+from engineering.spectrum import get_1dpsd
 
 
 # Metric functions in alphabetical order:
 
-def cdf_distance(distance, obs, sim, n_quantiles=2000):
+def cdf_distance(obs, sim, n_quantiles=200, distance="l2"):
     """
     Calculate the CDF distance between two arrays.
 
@@ -70,7 +72,7 @@ def mean_absolute_error(obs, sim, axis=(0,1,2)):
     ## Returns:
     mae (float): Mean Absolute Error.
     """
-    return np.mean(np.abs(obs - sim), axis=axis)
+    return np.mean(np.abs(obs - sim))
 
 
 def perkins_skill_score(obs, sim, n_quantiles=2000):
@@ -137,8 +139,8 @@ def psd_distance(
         different_lengths = False
         
     # Get wavelengths and PSDs
-    obs_wavelengths, obs_psd = get_psd(obs, obs_x_length, obs_y_length)
-    sim_wavelengths, sim_psd = get_psd(sim, sim_x_length, sim_y_length)
+    obs_wavelengths, obs_psd = get_1dpsd(obs, obs_x_length, obs_y_length)
+    sim_wavelengths, sim_psd = get_1dpsd(sim, sim_x_length, sim_y_length)
     
     if different_lengths:
         # Interpolate to the commons wavelengths
@@ -177,3 +179,18 @@ def root_mean_squared_error(obs, sim):
     mse (float): Mean Squared Error.
     """
     return np.sqrt(np.mean((obs - sim)**2))
+
+
+def wasserstein_distance(obs, sim):
+    """
+    Calculate the Wasserstein distance between two arrays.
+    Currently using the properscoring library.
+    
+    ## Parameters:
+    obs (array): Observed values.
+    sim (array): Simulated values.
+    
+    ## Returns:
+    wasserstein_distance (float): Wasserstein distance.
+    """
+    return wass_dist(obs, sim)

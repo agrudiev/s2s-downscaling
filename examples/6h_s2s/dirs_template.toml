@@ -1,0 +1,11 @@
+[raw] # this should be downloaded from the S2S database
+s2s = "S2S/downloaded/data"
+
+[main] # main directory for the 6h_s2s example
+base = "path/to/your/data/directory/for/this/example"
+
+[subs] # the following folder are relative paths to the main directory
+train = "train_data"
+validation = "validation_data"
+test = "test_data"
+simulations = "simulations"

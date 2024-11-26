@@ -1,10 +1,10 @@
 import os, shutil
-import jax
-import jax
+import jax, h5py
 import numpy as np
 import jax.numpy as jnp
 import xarray as xr
 from math import radians, sin, cos, sqrt, atan2
+from typing import Dict
 
 # Utils function in (almost) alfabetical order
 
@@ -22,6 +22,32 @@ def create_folder(path, overwrite=False):
     if os.path.exists(path) & overwrite:
         shutil.rmtree(path)
     os.makedirs(path, exist_ok=True)
+    
+    
+def delog_transform(data, epsilon=1e-4):
+    """
+    Inverse of log transformation.
+    """
+    return jnp.exp(data + jnp.log(epsilon)) - epsilon
+
+
+def denormalize_data(data, mean, std, norm_mean=0.0, norm_std=1.0):
+    """
+    Inverse of normalization.
+    """
+    return (data-norm_mean) * std / norm_std + mean
+
+
+def deprocess_data(data, mean, std, norm_mean=0.0, norm_std=1.0, is_log_transforming=True, clip_zero=False):
+    """
+    Inverse of process_data.
+    """
+    data = denormalize_data(data, mean, std, norm_mean, norm_std)
+    if is_log_transforming:
+        data = delog_transform(data)
+    if clip_zero:
+        data = jnp.clip(data, 0, None)
+    return data
 
 
 def filter_dry_images(data, threshold=0.1, fraction=0.2, seed=123, return_indices=False):
@@ -133,12 +159,19 @@ def find_intersection(wavelengths, era5_psd, cpc_psd, threshold=1):
     return lambda_star, psd_star
 
 
-def get_pdf(x, bins):
+def get_precip_dims_dict(file_path: str):
     """
-    Calculates the Probability Density Function (PDF) of the input data based on the given bins.
+    Reads the dimensions of the dataset from the specified .h5 file
+    as the attributes with only one dimension.
     """
-    pdf, _ = np.histogram(x, bins)
-    return pdf / pdf.sum()
+    # maybe this can be improved in the future to something more general
+    with h5py.File(file_path, "r") as f:
+        dims_dict = {}
+        for key in f.keys():
+            if len(f[key].shape) == 1:
+                dims_dict[key] = f[key][:]
+                
+    return dims_dict
 
 
 def get_cdf(x, bins):
@@ -149,6 +182,14 @@ def get_cdf(x, bins):
     cdf = np.cumsum(pdf)
     cdf = np.insert(cdf, 0, 0.0)
     return cdf / cdf.max()
+
+
+def get_pdf(x, bins):
+    """
+    Calculates the Probability Density Function (PDF) of the input data based on the given bins.
+    """
+    pdf, _ = np.histogram(x, bins)
+    return pdf / pdf.sum()
 
 
 def get_spatial_lengths(lons, lats):
@@ -183,15 +224,6 @@ def haversine(lon1, lat1, lon2, lat2):
     return distance
 
 
-def take_nan_imgs_out(data):
-    idx_to_keep = []
-    for i in range(data.shape[0]):
-        if not np.isnan(data[i]).any():
-            idx_to_keep.append(i)
-    data = data[idx_to_keep]
-    return data
-
-
 def log_transform(data, epsilon=1e-4):
     """
     Applies a log transformation to the input data using the formula x̃ = log(x + ϵ) − log(ϵ).
@@ -222,29 +254,12 @@ def process_data(data, mean, std, norm_mean=0.0, norm_std=1.0, is_log_transformi
     return data, mean, std
 
 
-def delog_transform(data, epsilon=1e-4):
-    """
-    Inverse of log transformation.
-    """
-    return jnp.exp(data + jnp.log(epsilon)) - epsilon
-
-
-def denormalize_data(data, mean, std, norm_mean=0.0, norm_std=1.0):
-    """
-    Inverse of normalization.
-    """
-    return (data-norm_mean) * std / norm_std + mean
-
-
-def deprocess_data(data, mean, std, norm_mean=0.0, norm_std=1.0, is_log_transforming=True, clip_zero=False):
-    """
-    Inverse of process_data.
-    """
-    data = denormalize_data(data, mean, std, norm_mean, norm_std)
-    if is_log_transforming:
-        data = delog_transform(data)
-    if clip_zero:
-        data = jnp.clip(data, 0, None)
+def take_nan_imgs_out(data):
+    idx_to_keep = []
+    for i in range(data.shape[0]):
+        if not np.isnan(data[i]).any():
+            idx_to_keep.append(i)
+    data = data[idx_to_keep]
     return data
 
 
@@ -293,9 +308,33 @@ def write_dataset(times, lats, lons, data, filename):
     """
     Creates an xarray dataset from the input data and writes it to a .h5 file at the specified filename.
     """
+    if not os.path.exists(os.path.dirname(filename)):
+        os.makedirs(os.path.dirname(filename))
     if len(data.shape) == 4:
         _write_ensemble_dataset(times, lats, lons, data, filename)
     elif len(data.shape) == 3:
         _write_deterministic_dataset(times, lats, lons, data, filename)
     else:
-        raise ValueError("Data must have either 4 (deterministic) or 5 (ensemble) dimensions.")
+        raise ValueError("Data must have either 4 (deterministic) or 5 (ensemble) dimensions.")    
+    
+
+def write_precip_to_h5(dims: Dict[str, np.ndarray], data: np.ndarray, filename: str):
+    """
+    Writes the input data to a .h5 file at the specified filename following the specified dimensions.
+    """
+    dim_keys = list(dims.keys())
+    
+    if data.shape != tuple(len(dims[dim]) for dim in dim_keys):
+        raise ValueError("Shape of data does not match the dimensions in dims.")
+
+    if not os.path.exists(os.path.dirname(filename)):
+        os.makedirs(os.path.dirname(filename))
+        
+    ds = xr.Dataset(
+        {
+            "precip": (dim_keys, data)
+        },
+        coords=dims
+    )
+
+    ds.to_netcdf(filename, engine="h5netcdf")

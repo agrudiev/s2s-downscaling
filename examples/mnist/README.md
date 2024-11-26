@@ -1,0 +1,1 @@
+This is a very simple example to show basic diffusion model functionalities used in this repository and a good starting point for new users.
