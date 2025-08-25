@@ -2,7 +2,7 @@
 s2s = "S2S/downloaded/data"
 
 [main] # main directory for the 6h_s2s example
-base = "path/to/your/data/directory/for/this/example"
+base = "/work/FAC/FGSE/IDYST/tbeucler/downscaling/agrudiev/data/6h_s2s"
 
 [subs] # the following folder are relative paths to the main directory
 train = "train_data"

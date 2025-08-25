@@ -6,6 +6,7 @@ import xarray as xr
 from math import radians, sin, cos, sqrt, atan2
 from typing import Dict
 
+
 # Utils function in (almost) alfabetical order
 
 def batch_mul(a, b):
@@ -263,7 +264,7 @@ def take_nan_imgs_out(data):
     return data
 
 
-def _write_deterministic_dataset(times, lats, lons, data, filename):
+def _write_deterministic_dataset(times, dyear, time_daytime, lats, lons, data, filename):
     """
     Creates an xarray dataset from the input data and writes it to a .h5 file at the specified filename.
     """
@@ -271,19 +272,21 @@ def _write_deterministic_dataset(times, lats, lons, data, filename):
     ds = xr.Dataset(
         {
             "precip": (["time", "latitude", "longitude"], data),
+            "dyear": (["time"], dyear),  # Nouvelle variable
+            "time_daytime": (["time"], time_daytime)  # Ajout de time_daytime
         },
-        coords = {
+        coords={
             "time": (["time"], times),
             "latitude": (["latitude"], lats),
             "longitude": (["longitude"], lons),
         },
     )
-    
+
     # Write dataset
     ds.to_netcdf(filename, engine="h5netcdf")
 
 
-def _write_ensemble_dataset(times, lats, lons, data, filename):
+def _write_ensemble_dataset(times, dyear, time_daytime, lats, lons, data, filename):
     """
     Creates an xarray dataset from the input data and writes it to a .h5 file at the specified filename.
     """
@@ -291,34 +294,37 @@ def _write_ensemble_dataset(times, lats, lons, data, filename):
     ds = xr.Dataset(
         {
             "precip": (["time", "ensemble", "latitude", "longitude"], data),
+            "dyear": (["time"], dyear),  # Nouvelle variable
+            "time_daytime": (["time"], time_daytime)  # Ajout de time_daytime
         },
-        coords = {
+        coords={
             "time": (["time"], times),
             "ensemble": (["ensemble"], np.arange(data.shape[1])),
             "latitude": (["latitude"], lats),
             "longitude": (["longitude"], lons),
         },
     )
-    
+
     # Write dataset
     ds.to_netcdf(filename, engine="h5netcdf")
+
+
     
-    
-def write_dataset(times, lats, lons, data, filename):
+def write_dataset(times, dyear, time_daytime, lats, lons, data, filename):
     """
     Creates an xarray dataset from the input data and writes it to a .h5 file at the specified filename.
     """
     if not os.path.exists(os.path.dirname(filename)):
         os.makedirs(os.path.dirname(filename))
     if len(data.shape) == 4:
-        _write_ensemble_dataset(times, lats, lons, data, filename)
+        _write_ensemble_dataset(times, dyear, time_daytime, lats, lons, data, filename)
     elif len(data.shape) == 3:
-        _write_deterministic_dataset(times, lats, lons, data, filename)
+        _write_deterministic_dataset(times, dyear, time_daytime, lats, lons, data, filename)
     else:
-        raise ValueError("Data must have either 4 (deterministic) or 5 (ensemble) dimensions.")    
-    
-
-def write_precip_to_h5(dims: Dict[str, np.ndarray], data: np.ndarray, filename: str):
+        raise ValueError("Data must have either 3 (deterministic) or 4 (ensemble) dimensions.")  
+ 
+  
+def write_precip_to_h5(dims: dict[str, np.ndarray], data: np.ndarray, filename: str):
     """
     Writes the input data to a .h5 file at the specified filename following the specified dimensions.
     """
